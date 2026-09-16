@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= guild.name %> — Studio Bot</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">Studio Bot · <span class="guild-name"><%= guild.name %></span></div>
+    <nav>
+      <a href="#messages">Messages</a>
+      <a href="#boutons">Boutons</a>
+      <a href="#bienvenue">Bienvenue</a>
+      <a href="#logs">Logs</a>
+      <a href="/dashboard">Mes serveurs</a>
+    </nav>
+  </div>
+
+  <div class="container">
+    <% if (status) { %>
+      <div class="banner <%= status %>"><%= msg %></div>
+    <% } %>
+
+    <!-- ═══════════════════ MESSAGES ═══════════════════ -->
+    <section class="section" id="messages">
+      <h2>Envoyer un message</h2>
+      <p class="section-intro">Envoie un message texte simple dans un salon du serveur.</p>
+
+      <form method="post" action="/dashboard/<%= guild.id %>/messages/send">
+        <div class="field">
+          <label for="msg-channel">Salon</label>
+          <select id="msg-channel" name="channelId" required>
+            <% textChannels.forEach(function(c) { %>
+              <option value="<%= c.id %>">#<%= c.name %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="msg-content">Message</label>
+          <textarea id="msg-content" name="content" required placeholder="Contenu du message..."></textarea>
+        </div>
+        <button type="submit">Envoyer</button>
+      </form>
+    </section>
+
+    <!-- ═══════════════════ BOUTONS ═══════════════════ -->
+    <section class="section" id="boutons">
+      <h2>Boutons &amp; actions</h2>
+      <p class="section-intro">
+        Un bouton est toujours posté par le bot dans un message (Discord ne permet d'éditer que ses propres
+        messages). Tu peux créer un nouveau message avec un premier bouton, ou ajouter un bouton supplémentaire
+        à un message déjà créé depuis ce panel.
+      </p>
+
+      <% if (messagesWithButtons.length > 0) { %>
+        <% messagesWithButtons.forEach(function(group) { %>
+          <div class="list-item" style="flex-direction:column;align-items:stretch;">
+            <div class="meta" style="margin-bottom:6px;">
+              #<%= group.channelName %> · <span class="tag"><%= group.messageId %></span>
+            </div>
+            <% group.buttons.forEach(function(btn) { %>
+              <div class="list-item">
+                <div>
+                  <strong><%= btn.label %></strong>
+                  <% if (btn.emoji) { %><%= btn.emoji %><% } %>
+                  — <span class="meta"><%= btn.actionType %></span>
+                </div>
+                <form method="post" action="/dashboard/<%= guild.id %>/buttons/<%= btn.id %>/delete"
+                      onsubmit="return confirm('Supprimer ce bouton ?');">
+                  <button type="submit" class="danger-link">Supprimer</button>
+                </form>
+              </div>
+            <% }); %>
+          </div>
+        <% }); %>
+        <hr class="divider" />
+      <% } %>
+
+      <form method="post" action="/dashboard/<%= guild.id %>/buttons" id="button-form">
+        <div class="field">
+          <label>Où poser ce bouton ?</label>
+          <div class="checkbox-row">
+            <input type="radio" name="mode" value="new" id="mode-new" checked onchange="toggleButtonMode()" />
+            <label for="mode-new" style="font-weight:400;margin:0;">Créer un nouveau message</label>
+          </div>
+          <% if (messagesWithButtons.length > 0) { %>
+            <div class="checkbox-row" style="margin-top:6px;">
+              <input type="radio" name="mode" value="existing" id="mode-existing" onchange="toggleButtonMode()" />
+              <label for="mode-existing" style="font-weight:400;margin:0;">Ajouter à un message existant</label>
+            </div>
+          <% } %>
+        </div>
+
+        <div id="new-message-fields">
+          <div class="field">
+            <label for="btn-channel">Salon</label>
+            <select id="btn-channel" name="channelId">
+              <% textChannels.forEach(function(c) { %>
+                <option value="<%= c.id %>">#<%= c.name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="field">
+            <label for="btn-content">Contenu du message</label>
+            <textarea id="btn-content" name="content" placeholder="Choisis ton rôle préféré :"></textarea>
+          </div>
+        </div>
+
+        <% if (messagesWithButtons.length > 0) { %>
+          <div id="existing-message-fields" style="display:none;">
+            <div class="field">
+              <label for="existing-message">Message existant</label>
+              <select id="existing-message" name="existingMessageId" onchange="syncExistingChannel()">
+                <% messagesWithButtons.forEach(function(group) { %>
+                  <option value="<%= group.messageId %>" data-channel="<%= group.channelId %>">
+                    #<%= group.channelName %> — <%= group.messageId %> (<%= group.buttons.length %> bouton<%= group.buttons.length > 1 ? 's' : '' %>)
+                  </option>
+                <% }); %>
+              </select>
+            </div>
+          </div>
+        <% } %>
+
+        <div class="field">
+          <label for="btn-label">Libellé du bouton</label>
+          <input type="text" id="btn-label" name="label" required placeholder="Ex : Jouer" />
+        </div>
+        <div class="field">
+          <label for="btn-emoji">Emoji <span class="hint">(optionnel, ex : 🎮)</span></label>
+          <input type="text" id="btn-emoji" name="emoji" />
+        </div>
+        <div class="field">
+          <label for="btn-style">Style</label>
+          <select id="btn-style" name="style">
+            <% buttonStyles.forEach(function(s) { %>
+              <option value="<%= s %>"><%= s %></option>
+            <% }); %>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="btn-action">Action déclenchée</label>
+          <select id="btn-action" name="actionType" onchange="toggleActionFields()">
+            <option value="ADD_ROLE">Donner un rôle</option>
+            <option value="REMOVE_ROLE">Retirer un rôle</option>
+            <option value="TOGGLE_ROLE">Basculer un rôle (ajoute/retire)</option>
+            <option value="SEND_DM">Envoyer un message privé</option>
+            <option value="EPHEMERAL_MESSAGE">Répondre uniquement à l'utilisateur</option>
+          </select>
+        </div>
+
+        <div id="fields-role" class="action-fields">
+          <div class="field">
+            <label for="btn-role">Rôle</label>
+            <select id="btn-role" name="roleId">
+              <% roles.forEach(function(r) { %>
+                <option value="<%= r.id %>"><%= r.name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="field" data-for="ADD_ROLE,REMOVE_ROLE">
+            <label for="btn-success-msg">Message de confirmation <span class="hint">(optionnel, réponse visible seulement par l'utilisateur)</span></label>
+            <input type="text" id="btn-success-msg" name="successMessage" placeholder="Tu as reçu le rôle Joueur !" />
+          </div>
+          <div class="field" data-for="TOGGLE_ROLE" style="display:none;">
+            <label for="btn-added-msg">Message si le rôle est ajouté</label>
+            <input type="text" id="btn-added-msg" name="addedMessage" />
+          </div>
+          <div class="field" data-for="TOGGLE_ROLE" style="display:none;">
+            <label for="btn-removed-msg">Message si le rôle est retiré</label>
+            <input type="text" id="btn-removed-msg" name="removedMessage" />
+          </div>
+        </div>
+
+        <div id="fields-dm" class="action-fields" style="display:none;">
+          <div class="field">
+            <label for="btn-dm-msg">Contenu du message privé</label>
+            <textarea id="btn-dm-msg" name="dmMessage" placeholder="Merci d'avoir cliqué !"></textarea>
+          </div>
+        </div>
+
+        <div id="fields-ephemeral" class="action-fields" style="display:none;">
+          <div class="field">
+            <label for="btn-ephemeral-msg">Message affiché uniquement à l'utilisateur</label>
+            <textarea id="btn-ephemeral-msg" name="ephemeralMessage" placeholder="Merci !"></textarea>
+          </div>
+        </div>
+
+        <button type="submit">Enregistrer</button>
+      </form>
+    </section>
+
+    <!-- ═══════════════════ BIENVENUE ═══════════════════ -->
+    <section class="section" id="bienvenue">
+      <h2>Message de bienvenue</h2>
+      <p class="section-intro">
+        Variables disponibles : <span class="tag">{user}</span> <span class="tag">{username}</span>
+        <span class="tag">{server}</span> <span class="tag">{memberCount}</span>
+      </p>
+
+      <form method="post" action="/dashboard/<%= guild.id %>/welcome">
+        <div class="field checkbox-row">
+          <input type="checkbox" id="welcome-enabled" name="enabled" <%= (!welcomeConfig || welcomeConfig.enabled) ? 'checked' : '' %> />
+          <label for="welcome-enabled" style="margin:0;">Activer le message de bienvenue</label>
+        </div>
+        <div class="field">
+          <label for="welcome-channel">Salon</label>
+          <select id="welcome-channel" name="channelId">
+            <% textChannels.forEach(function(c) { %>
+              <option value="<%= c.id %>" <%= welcomeConfig && welcomeConfig.channelId === c.id ? 'selected' : '' %>>#<%= c.name %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="welcome-message">Message</label>
+          <textarea id="welcome-message" name="message" placeholder="Bienvenue {user} sur {server} ! Nous sommes {memberCount} membres."><%= welcomeConfig ? welcomeConfig.message : '' %></textarea>
+        </div>
+        <div class="field checkbox-row">
+          <input type="checkbox" id="welcome-embed" name="isEmbed" <%= welcomeConfig && welcomeConfig.isEmbed ? 'checked' : '' %> />
+          <label for="welcome-embed" style="margin:0;">Afficher sous forme d'embed</label>
+        </div>
+        <div class="field">
+          <label for="welcome-color">Couleur de l'embed <span class="hint">(optionnel, ex : #2F5D50)</span></label>
+          <input type="text" id="welcome-color" name="embedColor" class="mono" value="<%= welcomeConfig && welcomeConfig.embedColor ? welcomeConfig.embedColor : '' %>" />
+        </div>
+        <button type="submit">Enregistrer</button>
+      </form>
+    </section>
+
+    <!-- ═══════════════════ LOGS ═══════════════════ -->
+    <section class="section" id="logs">
+      <h2>Logs</h2>
+      <p class="section-intro">Choisis le salon et les événements à publier sous forme d'embeds.</p>
+
+      <form method="post" action="/dashboard/<%= guild.id %>/logs">
+        <div class="field">
+          <label for="log-channel">Salon des logs</label>
+          <select id="log-channel" name="channelId">
+            <% textChannels.forEach(function(c) { %>
+              <option value="<%= c.id %>" <%= logConfig && logConfig.channelId === c.id ? 'selected' : '' %>>#<%= c.name %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="field">
+          <label>Événements à journaliser</label>
+          <div class="checkbox-grid">
+            <% Object.keys(logEventTypes).forEach(function(key) { %>
+              <div class="checkbox-row">
+                <input type="checkbox" id="log-<%= key %>" name="events" value="<%= key %>"
+                  <%= logConfig && logConfig.eventsList.includes(key) ? 'checked' : '' %> />
+                <label for="log-<%= key %>" style="margin:0;font-weight:400;"><%= logEventTypes[key] %></label>
+              </div>
+            <% }); %>
+          </div>
+        </div>
+        <button type="submit">Enregistrer</button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    function toggleButtonMode() {
+      var isExisting = document.getElementById('mode-existing') && document.getElementById('mode-existing').checked;
+      document.getElementById('new-message-fields').style.display = isExisting ? 'none' : 'block';
+      var existingFields = document.getElementById('existing-message-fields');
+      if (existingFields) existingFields.style.display = isExisting ? 'block' : 'none';
+    }
+
+    function toggleActionFields() {
+      var action = document.getElementById('btn-action').value;
+      document.getElementById('fields-role').style.display = ['ADD_ROLE', 'REMOVE_ROLE', 'TOGGLE_ROLE'].includes(action) ? 'block' : 'none';
+      document.getElementById('fields-dm').style.display = action === 'SEND_DM' ? 'block' : 'none';
+      document.getElementById('fields-ephemeral').style.display = action === 'EPHEMERAL_MESSAGE' ? 'block' : 'none';
+
+      document.querySelectorAll('#fields-role [data-for]').forEach(function (el) {
+        var targets = el.getAttribute('data-for').split(',');
+        el.style.display = targets.includes(action) ? 'block' : 'none';
+      });
+    }
+
+    function syncExistingChannel() {
+      var select = document.getElementById('existing-message');
+      var option = select.options[select.selectedIndex];
+      var channelId = option.getAttribute('data-channel');
+      var channelSelect = document.getElementById('btn-channel');
+      if (channelSelect) channelSelect.value = channelId;
+    }
+
+    toggleActionFields();
+  </script>
+</body>
+</html>

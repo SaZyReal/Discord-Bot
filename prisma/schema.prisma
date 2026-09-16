@@ -1,0 +1,87 @@
+// Schéma de base de données du Studio Bot
+// SQLite est largement suffisant pour ce volume de données (config, pas de gros historique).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Un serveur Discord sur lequel le bot est configuré.
+// Tout le reste du schéma est rattaché à un Guild : le projet supporte
+// plusieurs serveurs dès le départ, même si un seul est utilisé au lancement.
+model Guild {
+  id        String   @id // ID du serveur Discord
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  welcomeConfig WelcomeConfig?
+  logConfig     LogConfig?
+  buttonConfigs ButtonConfig[]
+  adminRoles    AdminRole[]
+}
+
+// Rôles Discord considérés comme "administrateurs du bot" pour ce serveur,
+// en plus de la permission Discord "Administrateur" native.
+model AdminRole {
+  id      String @id @default(cuid())
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  roleId  String
+
+  @@unique([guildId, roleId])
+}
+
+// Configuration du message de bienvenue à l'arrivée d'un membre.
+model WelcomeConfig {
+  id         String   @id @default(cuid())
+  guildId    String   @unique
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  enabled    Boolean  @default(true)
+  channelId  String
+  message    String // supporte {user} {username} {server} {memberCount}
+  isEmbed    Boolean  @default(false)
+  embedColor String? // couleur hexadécimale, ex: #2F5D50
+  updatedAt  DateTime @updatedAt
+}
+
+// Salon de logs + liste des événements à y publier.
+model LogConfig {
+  id        String   @id @default(cuid())
+  guildId   String   @unique
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  channelId String
+  // Liste d'événements activés, stockée en JSON, ex: ["MEMBER_JOIN","BUTTON_INTERACTION"]
+  events    String
+  updatedAt DateTime @updatedAt
+}
+
+// Un bouton configuré depuis le panel, posté par le bot dans un message,
+// et relié à une action exécutée lors du clic.
+model ButtonConfig {
+  id            String   @id @default(cuid())
+  guildId       String
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  channelId     String
+  messageId     String // message (posté par le bot) qui porte ce bouton
+  customId      String   @unique // identifiant unique utilisé pour router le clic
+  label         String
+  emoji         String?
+  style         String   @default("PRIMARY") // PRIMARY | SECONDARY | SUCCESS | DANGER
+  actionType    String // ADD_ROLE | REMOVE_ROLE | TOGGLE_ROLE | SEND_DM | EPHEMERAL_MESSAGE
+  actionPayload String // JSON sérialisé, dépend de actionType (voir src/actions/types.ts)
+  createdAt     DateTime @default(now())
+
+  @@index([guildId])
+}
+
+// Sessions du panel web (stockées en base pour survivre à un redémarrage du bot).
+model Session {
+  id        String   @id
+  data      String
+  expiresAt DateTime
+}

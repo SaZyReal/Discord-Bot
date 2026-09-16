@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tes serveurs — Studio Bot</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">Studio Bot</div>
+    <nav>
+      <span class="meta"><%= user.username %></span>
+      <form method="post" action="/auth/logout" style="display:inline">
+        <button type="submit" class="secondary" style="margin-left:16px;padding:4px 12px;font-size:13px;">Déconnexion</button>
+      </form>
+    </nav>
+  </div>
+
+  <div class="container">
+    <h1>Tes serveurs</h1>
+    <p class="section-intro">Sélectionne le serveur à configurer.</p>
+
+    <% if (guilds.length === 0) { %>
+      <div class="empty-state">
+        Le bot ne te reconnaît comme administrateur sur aucun serveur pour l'instant.
+        Vérifie que tu as la permission « Administrateur » (ou un rôle admin configuré) sur un serveur où le bot est présent.
+      </div>
+    <% } else { %>
+      <% guilds.forEach(function(guild) { %>
+        <a class="guild-card" href="/dashboard/<%= guild.id %>">
+          <% if (guild.icon) { %>
+            <img src="<%= guild.icon %>" alt="" />
+          <% } else { %>
+            <img src="" alt="" style="visibility:hidden" />
+          <% } %>
+          <span><%= guild.name %></span>
+        </a>
+      <% }); %>
+    <% } %>
+  </div>
+</body>
+</html>
